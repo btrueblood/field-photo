@@ -1,9 +1,9 @@
-/* Farwest Field Photo — offline cache, v1.5.0
+/* Farwest Field Photo — offline cache, v1.5.1
    Strategy: network-first for the app page (so updates arrive when there IS
    service), cache fallback when there isn't. */
 'use strict';
 
-const CACHE = 'field-photo-v1.5.0';
+const CACHE = 'field-photo-v1.5.1';
 const ASSETS = ['./', './index.html', './sw.js', './icon.png'];
 
 self.addEventListener('install', (event) => {
