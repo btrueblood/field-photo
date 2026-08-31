@@ -1,4 +1,4 @@
-# FIC Field Photo — v1.4.0
+# FIC Field Photo — v1.5.0
 
 Take photos of field issues on a company iPad, dictate a description with the
 keyboard mic, and the description + date/time + job + name + FIC logo get
@@ -47,6 +47,8 @@ tap **Save Image** on the popup and the whole set lands in Photos at once.
 Next visit: **Start New Set** (tap twice — it deletes the exported set), or
 just take another photo to keep adding to the old set. Tap a thumbnail to get
 **Edit note** (fix the description and re-stamp) or **Remove** (tap twice).
+Botched set? **↻ Restart** (tap twice) clears all its photos and keeps the
+job and name.
 If unexported photos sit for more than a day, an orange warning shows at the
 top until they're exported.
 

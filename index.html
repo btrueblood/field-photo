@@ -58,6 +58,8 @@
   .btn-ghost{background:transparent; color:var(--dim); font-weight:600; font-size:16px; padding:12px;}
   .btn-green{background:#2e7d32; font-size:23px; padding:22px;}
   .btn-green:active{background:#1f5c23;}
+  .btn-restart{background:#fff; color:var(--red); border:2px solid var(--red); font-size:18px; padding:16px;}
+  .btn-restart.armed{background:var(--red); color:#fff;}
 
   #jobRecent{display:none; flex-direction:column; gap:10px;}
   #jobRecent.on{display:flex;}
@@ -138,6 +140,7 @@
       <p class="hint" id="exportHint" hidden>In the popup, tap <b>“Save Image”</b> — all of them land in Photos at once.</p>
       <button class="btn-grey" id="btnStartNew" hidden>Start New Set</button>
       <p class="hint" id="newHint" hidden>Starting a new set deletes the exported photos above.<br>Or just take another photo to keep adding to this set.</p>
+      <button class="btn-restart" id="btnRestart" hidden>↻ Restart — clear these photos</button>
     </div>
 
     <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
@@ -162,13 +165,13 @@
 </main>
 
 <div id="toast"></div>
-<footer>FIC Field Photo v1.4.0 — photos never leave this iPad until you export</footer>
+<footer>FIC Field Photo v1.5.0 — photos never leave this iPad until you export</footer>
 
 <canvas id="workCanvas" hidden></canvas>
 
 <script>
 'use strict';
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 const $ = id => document.getElementById(id);
 const screens = { main: $('screen-main'), annotate: $('screen-annotate') };
 let currentBitmap = null, bmpW = 0, bmpH = 0;
@@ -202,9 +205,9 @@ function renderRecentJobs(){
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = j;
-    // pointerdown fires before the input loses focus, so a gloved tap always lands
-    b.addEventListener('pointerdown', (ev) => {
-      ev.preventDefault();
+    // 'click' fires only on a completed tap — a touch that turns into a scroll
+    // never selects, and nothing leaks through to the thumbnails behind
+    b.addEventListener('click', () => {
       $('job').value = j;
       lsSet('fp_job', j);
       panel.classList.remove('on');
@@ -216,7 +219,14 @@ function renderRecentJobs(){
 }
 $('job').addEventListener('focus', renderRecentJobs);
 $('job').addEventListener('input', renderRecentJobs);
-$('job').addEventListener('blur', () => setTimeout(() => $('jobRecent').classList.remove('on'), 250));
+// the list stays open while scrolling; it closes on a pick or a completed tap
+// anywhere else (closing on 'click', after the tap finishes, so the layout
+// never shifts mid-tap and the tap can't land on something that moved)
+document.addEventListener('click', (ev) => {
+  if (!ev.target.closest('#jobRecent') && ev.target !== $('job')){
+    $('jobRecent').classList.remove('on');
+  }
+});
 
 /* ---------- IndexedDB ---------- */
 let dbp = null;
@@ -322,13 +332,16 @@ async function refreshMain(){
 
   // status + buttons
   const takeBtn = $('btnTake'), expBtn = $('btnExport'), newBtn = $('btnStartNew');
+  const restartBtn = $('btnRestart');
   const banner = $('banner');
   resetStartNew();
+  resetRestart();
   if (n === 0){
     $('setStatus').textContent = 'No photos yet — take the first one.';
     banner.classList.remove('on');
     expBtn.hidden = true; $('exportHint').hidden = true;
     newBtn.hidden = true; $('newHint').hidden = true;
+    restartBtn.hidden = true;
     takeBtn.innerHTML = '📷 &nbsp;Take Photo';
   } else if (!allExported){
     $('setStatus').textContent = n + (n === 1 ? ' photo' : ' photos') + ' in this set';
@@ -336,6 +349,7 @@ async function refreshMain(){
     expBtn.hidden = false; $('exportHint').hidden = false;
     expBtn.textContent = 'Export Set (' + n + ')';
     newBtn.hidden = true; $('newHint').hidden = true;
+    restartBtn.hidden = false;
     takeBtn.innerHTML = '📷 &nbsp;Take Another Photo';
   } else {
     $('setStatus').textContent = '';
@@ -343,9 +357,34 @@ async function refreshMain(){
     banner.classList.add('on');
     expBtn.hidden = true; $('exportHint').hidden = true;
     newBtn.hidden = false; $('newHint').hidden = false;
+    restartBtn.hidden = true;
     takeBtn.innerHTML = '📷 &nbsp;Add to This Set';
   }
 }
+
+/* ---------- restart the set (two-tap; keeps job + name) ---------- */
+let restartArmed = null;
+function resetRestart(){
+  clearTimeout(restartArmed); restartArmed = null;
+  const b = $('btnRestart');
+  b.classList.remove('armed');
+  b.textContent = '↻ Restart — clear these photos';
+}
+$('btnRestart').addEventListener('click', async () => {
+  const all = await dbAll().catch(() => []);
+  if (!all.length){ await refreshMain(); return; }
+  if (restartArmed === null){
+    const b = $('btnRestart');
+    b.classList.add('armed');
+    b.textContent = 'Tap again — deletes all ' + all.length + (all.length === 1 ? ' photo' : ' photos');
+    restartArmed = setTimeout(resetRestart, 4000);
+    return;
+  }
+  resetRestart();
+  for (const r of all) await dbDel(r.id);
+  await refreshMain();
+  toast('Set cleared — job and name kept');
+});
 
 /* ---------- capture (Apple camera) ---------- */
 $('btnTake').addEventListener('click', () => $('camInput').click());
