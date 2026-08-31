@@ -56,6 +56,14 @@
   .btn-grey{background:var(--grey);}
   .btn-grey:active{background:var(--grey-press);}
   .btn-ghost{background:transparent; color:var(--dim); font-weight:600; font-size:16px; padding:12px;}
+  .btn-green{background:#2e7d32; font-size:23px; padding:22px;}
+  .btn-green:active{background:#1f5c23;}
+
+  #jobRecent{display:none; flex-direction:column; gap:10px;}
+  #jobRecent.on{display:flex;}
+  #jobRecent button{background:#fff; color:var(--text); border:2px solid var(--red);
+    font-size:21px; font-weight:800; padding:18px; text-align:left;}
+  #jobRecent button:active{background:#fbecec;}
 
   .hint{font-size:15px; color:var(--dim); line-height:1.45; text-align:center; margin:0;}
 
@@ -115,6 +123,7 @@
         <input type="text" id="who" placeholder="e.g. Brenden" autocomplete="off" autocapitalize="words">
       </div>
     </div>
+    <div id="jobRecent"></div>
 
     <p id="setStatus">No photos yet — take the first one.</p>
     <div id="staleBanner"></div>
@@ -140,25 +149,26 @@
     <div class="field">
       <label for="descBox">Description of the issue</label>
       <textarea id="descBox" placeholder="Tap here, then tap the mic 🎤 on the keyboard and just talk."></textarea>
+      <p class="hint">🎤 The mic key on the iPad keyboard does the dictation — it works even with no service.</p>
     </div>
     <div class="stack">
-      <button class="btn-red" id="btnSave">Save Photo</button>
+      <button class="btn-green" id="btnSave">✓ Save Photo</button>
       <div class="row">
-        <button class="btn-ghost" id="btnRetake">↺ Retake</button>
-        <button class="btn-ghost" id="btnCancel">✕ Cancel</button>
+        <button class="btn-grey" id="btnRetake" style="font-size:20px; padding:18px;">↺ Retake</button>
+        <button class="btn-red" id="btnCancel" style="font-size:20px; padding:18px;">✕ Cancel</button>
       </div>
     </div>
   </section>
 </main>
 
 <div id="toast"></div>
-<footer>FIC Field Photo v1.3.0 — photos never leave this iPad until you export</footer>
+<footer>FIC Field Photo v1.4.0 — photos never leave this iPad until you export</footer>
 
 <canvas id="workCanvas" hidden></canvas>
 
 <script>
 'use strict';
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const $ = id => document.getElementById(id);
 const screens = { main: $('screen-main'), annotate: $('screen-annotate') };
 let currentBitmap = null, bmpW = 0, bmpH = 0;
@@ -171,6 +181,42 @@ $('job').value = lsGet('fp_job');
 $('who').value = lsGet('fp_who');
 $('job').addEventListener('input', e => lsSet('fp_job', e.target.value));
 $('who').addEventListener('input', e => lsSet('fp_who', e.target.value));
+
+/* ---------- recent jobs (big tappable list under the job box) ---------- */
+function getRecentJobs(){
+  try { return JSON.parse(localStorage.getItem('fp_jobs') || '[]'); } catch(e){ return []; }
+}
+function rememberJob(job){
+  if (!job) return;
+  let jobs = getRecentJobs().filter(j => j.toLowerCase() !== job.toLowerCase());
+  jobs.unshift(job);
+  jobs = jobs.slice(0, 4);
+  try { localStorage.setItem('fp_jobs', JSON.stringify(jobs)); } catch(e){}
+}
+function renderRecentJobs(){
+  const panel = $('jobRecent');
+  const jobs = getRecentJobs().filter(j => j.toLowerCase() !== $('job').value.trim().toLowerCase());
+  panel.innerHTML = '';
+  if (!jobs.length){ panel.classList.remove('on'); return; }
+  for (const j of jobs){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = j;
+    // pointerdown fires before the input loses focus, so a gloved tap always lands
+    b.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      $('job').value = j;
+      lsSet('fp_job', j);
+      panel.classList.remove('on');
+      $('job').blur();
+    });
+    panel.appendChild(b);
+  }
+  panel.classList.add('on');
+}
+$('job').addEventListener('focus', renderRecentJobs);
+$('job').addEventListener('input', renderRecentJobs);
+$('job').addEventListener('blur', () => setTimeout(() => $('jobRecent').classList.remove('on'), 250));
 
 /* ---------- IndexedDB ---------- */
 let dbp = null;
@@ -319,7 +365,7 @@ async function onFile(e){
   bmpH = currentBitmap.height || currentBitmap.naturalHeight;
   drawPreview();
   $('descBox').value = '';
-  $('btnSave').textContent = 'Save Photo';
+  $('btnSave').textContent = '✓ Save Photo';
   $('btnRetake').hidden = false;
   show('annotate');
 }
@@ -334,7 +380,7 @@ async function startEdit(r){
   bmpH = currentBitmap.height || currentBitmap.naturalHeight;
   drawPreview();
   $('descBox').value = r.desc || '';
-  $('btnSave').textContent = 'Save Changes';
+  $('btnSave').textContent = '✓ Save Changes';
   $('btnRetake').hidden = true;
   show('annotate');
 }
@@ -460,6 +506,7 @@ $('btnSave').addEventListener('click', async () => {
       await dbAdd({ blob, orig: pendingOrig, desc, name: makeFilename(), ts: Date.now(), exported: 0 });
       toast('Saved ✓');
     }
+    rememberJob($('job').value.trim());
     currentBitmap = null; pendingOrig = null; editingRec = null;
     await refreshMain();
     show('main');

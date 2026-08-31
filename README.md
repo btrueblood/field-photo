@@ -1,4 +1,4 @@
-# FIC Field Photo — v1.2.0
+# FIC Field Photo — v1.4.0
 
 Take photos of field issues on a company iPad, dictate a description with the
 keyboard mic, and the description + date/time + job + name + FIC logo get
@@ -38,13 +38,17 @@ the address becomes e.g. `farwestinsulation.com/fieldphoto/`.
 
 ## Daily use
 
-Enter job number and name once (the iPad remembers them). Then per issue:
-**Take Photo** → Apple camera → tap the description box → tap the **mic key**
-and talk → **Save Photo**. Repeat for every issue. When done: **Export Set** →
+Enter job number and name once (the iPad remembers them). Tapping the job box
+shows big buttons for the last few jobs — tap one instead of typing. Then per
+issue: **Take Photo** → Apple camera → tap the description box → tap the
+**mic key** on the keyboard and talk → green **✓ Save Photo** (grey ↺ Retake /
+red ✕ Cancel). Repeat for every issue. When done: **Export Set** →
 tap **Save Image** on the popup and the whole set lands in Photos at once.
 Next visit: **Start New Set** (tap twice — it deletes the exported set), or
-just take another photo to keep adding to the old set. Tap a thumbnail twice
-to remove a bad photo before exporting.
+just take another photo to keep adding to the old set. Tap a thumbnail to get
+**Edit note** (fix the description and re-stamp) or **Remove** (tap twice).
+If unexported photos sit for more than a day, an orange warning shows at the
+top until they're exported.
 
 ## Updating the app later
 
