@@ -176,13 +176,13 @@
 </main>
 
 <div id="toast"></div>
-<footer>FIC Field Photo v1.8.0 — photos never leave this iPad until you export</footer>
+<footer>FIC Field Photo v1.8.1 — photos never leave this iPad until you export</footer>
 
 <canvas id="workCanvas" hidden></canvas>
 
 <script>
 'use strict';
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 const $ = id => document.getElementById(id);
 const screens = { main: $('screen-main'), annotate: $('screen-annotate') };
 let currentBitmap = null, bmpW = 0, bmpH = 0;
@@ -275,7 +275,31 @@ function show(name){
 }
 
 /* ---------- the set (main screen) ---------- */
-let thumbUrls = [];
+let thumbToken = 0;   // bumps each refresh so stale async thumbnails are ignored
+
+// Build a small self-contained data: URL for a thumbnail. Data URLs (unlike
+// object URLs) survive the iOS share sheet, which invalidates object URLs and
+// left thumbnails showing a broken-image "?" until the app was reopened.
+async function makeThumb(blob){
+  try {
+    const bmp = await createImageBitmap(blob);
+    const maxW = 520;
+    const scale = Math.min(1, maxW / bmp.width);
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * scale);
+    c.height = Math.round(bmp.height * scale);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    if (bmp.close) bmp.close();
+    return c.toDataURL('image/jpeg', 0.8);
+  } catch(e){
+    return await new Promise((res) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = () => res('');
+      fr.readAsDataURL(blob);
+    });
+  }
+}
 let armedThumb = null;
 
 function disarmThumb(){
@@ -298,16 +322,16 @@ async function refreshMain(){
 
   // thumbnails — tap one for Edit / Remove
   disarmThumb();
-  thumbUrls.forEach(u => URL.revokeObjectURL(u)); thumbUrls = [];
+  const myToken = ++thumbToken;
   const grid = $('thumbGrid'); grid.innerHTML = '';
   for (const r of all){
-    const u = URL.createObjectURL(r.blob); thumbUrls.push(u);
     const b = document.createElement('div');
     b.className = 'thumb';
     b.innerHTML = '<img alt=""><div class="ops">' +
       '<button type="button" class="op-edit">✎ Edit note</button>' +
       '<button type="button" class="op-del">✕ Remove</button></div>';
-    b.querySelector('img').src = u;
+    const img = b.querySelector('img');
+    makeThumb(r.blob).then((src) => { if (src && myToken === thumbToken) img.src = src; });
     const ops = b.querySelector('.ops');
     // tap the photo to open Edit (top) / Remove (bottom)
     b.addEventListener('click', (ev) => {
