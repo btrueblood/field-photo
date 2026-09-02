@@ -60,6 +60,8 @@
   .btn-green:active{background:#1f5c23;}
   .btn-restart{background:#fff; color:var(--red); border:2px solid var(--red); font-size:18px; padding:16px;}
   .btn-restart.armed{background:var(--red); color:#fff;}
+  .btn-reexport{background:#fff; color:var(--grey); border:2px solid var(--grey); font-size:18px; padding:16px;}
+  .btn-reexport.armed{background:var(--grey); color:#fff;}
 
   #jobRecent{display:none; flex-direction:column; gap:10px;}
   #jobRecent.on{display:flex;}
@@ -76,6 +78,11 @@
   #banner.on{display:block;}
 
   #thumbGrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); gap:10px;}
+  /* bigger photo previews on iPad-sized screens (phones stay as-is) */
+  @media (min-width: 700px){
+    #thumbGrid{grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:14px;}
+    .thumb .ops button{font-size:18px; padding:14px 8px;}
+  }
   .thumb{position:relative; border-radius:12px; overflow:hidden; background:var(--panel);
     border:1px solid var(--border); aspect-ratio:4/3; padding:0; cursor:pointer;}
   .thumb img{width:100%; height:100%; object-fit:cover; display:block; pointer-events:none;}
@@ -138,6 +145,7 @@
       <button class="btn-red" id="btnTake">📷 &nbsp;Take Photo</button>
       <button class="btn-dark" id="btnExport" hidden>Export Set</button>
       <p class="hint" id="exportHint" hidden>In the popup, tap <b>“Save Image”</b> — all of them land in Photos at once.</p>
+      <button class="btn-reexport" id="btnReexport" hidden>⤴ Re-export this set to Photos</button>
       <button class="btn-grey" id="btnStartNew" hidden>Start New Set</button>
       <p class="hint" id="newHint" hidden>Starting a new set deletes the exported photos above.<br>Or just take another photo to keep adding to this set.</p>
       <button class="btn-restart" id="btnRestart" hidden>↻ Restart — clear these photos</button>
@@ -165,13 +173,13 @@
 </main>
 
 <div id="toast"></div>
-<footer>FIC Field Photo v1.6.2 — photos never leave this iPad until you export</footer>
+<footer>FIC Field Photo v1.7.0 — photos never leave this iPad until you export</footer>
 
 <canvas id="workCanvas" hidden></canvas>
 
 <script>
 'use strict';
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.7.0';
 const $ = id => document.getElementById(id);
 const screens = { main: $('screen-main'), annotate: $('screen-annotate') };
 let currentBitmap = null, bmpW = 0, bmpH = 0;
@@ -332,16 +340,17 @@ async function refreshMain(){
 
   // status + buttons
   const takeBtn = $('btnTake'), expBtn = $('btnExport'), newBtn = $('btnStartNew');
-  const restartBtn = $('btnRestart');
+  const restartBtn = $('btnRestart'), reexpBtn = $('btnReexport');
   const banner = $('banner');
   resetStartNew();
   resetRestart();
+  resetReexport();
   if (n === 0){
     $('setStatus').textContent = 'No photos yet — take the first one.';
     banner.classList.remove('on');
     expBtn.hidden = true; $('exportHint').hidden = true;
     newBtn.hidden = true; $('newHint').hidden = true;
-    restartBtn.hidden = true;
+    restartBtn.hidden = true; reexpBtn.hidden = true;
     takeBtn.innerHTML = '📷 &nbsp;Take Photo';
   } else if (!allExported){
     $('setStatus').textContent = n + (n === 1 ? ' photo' : ' photos') + ' in this set';
@@ -349,7 +358,7 @@ async function refreshMain(){
     expBtn.hidden = false; $('exportHint').hidden = false;
     expBtn.textContent = 'Export Set (' + n + ')';
     newBtn.hidden = true; $('newHint').hidden = true;
-    restartBtn.hidden = false;
+    restartBtn.hidden = false; reexpBtn.hidden = true;
     takeBtn.innerHTML = '📷 &nbsp;Take Another Photo';
   } else {
     $('setStatus').textContent = '';
@@ -357,7 +366,7 @@ async function refreshMain(){
     banner.classList.add('on');
     expBtn.hidden = true; $('exportHint').hidden = true;
     newBtn.hidden = false; $('newHint').hidden = false;
-    restartBtn.hidden = true;
+    restartBtn.hidden = true; reexpBtn.hidden = false;
     takeBtn.innerHTML = '📷 &nbsp;Add to This Set';
   }
 }
@@ -586,6 +595,39 @@ $('btnExport').addEventListener('click', async () => {
     }
     await refreshMain();
     toast(all.length + ' downloaded ✓');
+  }
+});
+
+/* ---------- re-export an already-exported set (two-tap confirm) ---------- */
+let reexpArmed = null;
+function resetReexport(){
+  clearTimeout(reexpArmed); reexpArmed = null;
+  const b = $('btnReexport');
+  b.classList.remove('armed');
+  b.textContent = '⤴ Re-export this set to Photos';
+}
+$('btnReexport').addEventListener('click', async () => {
+  const all = (await dbAll().catch(() => [])).sort((a,b) => a.ts - b.ts);
+  if (!all.length){ await refreshMain(); return; }
+  if (reexpArmed === null){
+    const b = $('btnReexport');
+    b.classList.add('armed');
+    b.textContent = 'Confirm — re-export the same ' + all.length + (all.length === 1 ? ' photo' : ' photos') + '?';
+    reexpArmed = setTimeout(resetReexport, 4000);
+    return;
+  }
+  resetReexport();
+  const files = all.map(r => new File([r.blob], r.name, { type:'image/jpeg' }));
+  if (navigator.canShare && navigator.canShare({ files })){
+    try { await navigator.share({ files }); toast(all.length + ' re-exported ✓'); }
+    catch(err){ /* cancelled — set stays exported, unchanged */ }
+  } else {
+    for (const r of all){
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(r.blob); a.download = r.name;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+    toast(all.length + ' re-downloaded ✓');
   }
 });
 
