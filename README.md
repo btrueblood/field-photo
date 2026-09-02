@@ -1,4 +1,4 @@
-# FIC Field Photo — v1.5.1
+# FIC Field Photo — v1.6.0
 
 Take photos of field issues on a company iPad, dictate a description with the
 keyboard mic, and the description + date/time + job + name + FIC logo get

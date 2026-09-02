@@ -165,13 +165,13 @@
 </main>
 
 <div id="toast"></div>
-<footer>FIC Field Photo v1.5.1 — photos never leave this iPad until you export</footer>
+<footer>FIC Field Photo v1.6.0 — photos never leave this iPad until you export</footer>
 
 <canvas id="workCanvas" hidden></canvas>
 
 <script>
 'use strict';
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.6.0';
 const $ = id => document.getElementById(id);
 const screens = { main: $('screen-main'), annotate: $('screen-annotate') };
 let currentBitmap = null, bmpW = 0, bmpH = 0;
@@ -485,17 +485,26 @@ function renderStamped(){
   headerParts.push(fmtNow());
   const header = headerParts.join('   •   ');
 
+  // Text and logo are inset from the side edges so that viewers which crop a
+  // photo to fill the screen (the iPad Photos app) can't shave off letters.
+  // ~5% per side just clears the iPad's crop; the emailed/full photo keeps a
+  // clean margin. The logo sits in its own reserved right-hand column so a
+  // wrapped description line can never run under it.
+  const inset = Math.round(bmpW * 0.05);
   let base = Math.max(25, Math.round(bmpW / 35));
   const minBase = Math.max(17, Math.round(bmpW / 80));
-  let pad, headerSize, lineH, lines, barH, bugSize;
+  let pad, headerSize, lineH, lines, barH, bugSize, textW;
   for (;;){
     pad = Math.round(base * 0.75);
     headerSize = Math.round(base * 0.72);
     lineH = Math.round(base * 1.32);
     bugSize = Math.round(base * 1.9);
+    const bugGap = Math.round(base * 0.6);
+    textW = bmpW - inset * 2 - bugSize - bugGap;   // reserve the logo column
     ctx.font = '600 ' + base + 'px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-    lines = desc ? wrapText(ctx, desc, bmpW - pad * 2) : [];
-    barH = pad + headerSize + (lines.length ? Math.round(base * 0.55) + lines.length * lineH : 0) + pad;
+    lines = desc ? wrapText(ctx, desc, textW) : [];
+    const contentH = pad + headerSize + (lines.length ? Math.round(base * 0.55) + lines.length * lineH : 0) + pad;
+    barH = Math.max(contentH, pad + bugSize + pad);   // always tall enough for the logo
     if (barH <= bmpH * 0.45 || base <= minBase) break;
     base = Math.max(minBase, Math.round(base * 0.88));
   }
@@ -506,19 +515,20 @@ function renderStamped(){
   ctx.fillStyle = '#b3282d';
   ctx.fillRect(0, top, bmpW, Math.max(3, Math.round(bmpH * 0.004)));
 
+  // logo: top-right, inside the inset, in its reserved column
+  if (bugImg.complete && bugImg.naturalWidth){
+    ctx.drawImage(bugImg, bmpW - inset - bugSize, top + pad, bugSize, bugSize);
+  }
+
   ctx.textBaseline = 'top';
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.font = '700 ' + headerSize + 'px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-  ctx.fillText(header, pad, top + pad, bmpW - pad * 2 - bugSize - pad);
-
-  if (bugImg.complete && bugImg.naturalWidth){
-    ctx.drawImage(bugImg, bmpW - pad - bugSize, top + pad, bugSize, bugSize);
-  }
+  ctx.fillText(header, inset, top + pad, textW);
 
   ctx.fillStyle = '#ffffff';
   ctx.font = '600 ' + base + 'px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   let y = top + pad + headerSize + Math.round(base * 0.55);
-  for (const line of lines){ ctx.fillText(line, pad, y); y += lineH; }
+  for (const line of lines){ ctx.fillText(line, inset, y); y += lineH; }
   return c;
 }
 
