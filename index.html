@@ -176,13 +176,13 @@
 </main>
 
 <div id="toast"></div>
-<footer>FIC Field Photo v1.8.1 — photos never leave this iPad until you export</footer>
+<footer>FIC Field Photo v1.8.2 — photos never leave this iPad until you export</footer>
 
 <canvas id="workCanvas" hidden></canvas>
 
 <script>
 'use strict';
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.8.2';
 const $ = id => document.getElementById(id);
 const screens = { main: $('screen-main'), annotate: $('screen-annotate') };
 let currentBitmap = null, bmpW = 0, bmpH = 0;
@@ -331,7 +331,19 @@ async function refreshMain(){
       '<button type="button" class="op-edit">✎ Edit note</button>' +
       '<button type="button" class="op-del">✕ Remove</button></div>';
     const img = b.querySelector('img');
-    makeThumb(r.blob).then((src) => { if (src && myToken === thumbToken) img.src = src; });
+    // use the pre-built stored preview (a self-contained data URL) — no decoding
+    // here, so a refresh right after the share sheet can't fail. Only photos
+    // saved before this version lack one; those decode once as a fallback.
+    if (r.thumb){
+      img.src = r.thumb;
+    } else {
+      makeThumb(r.blob).then((src) => {
+        if (src && myToken === thumbToken){
+          img.src = src;
+          r.thumb = src; dbPut(r).catch(() => {});   // backfill so it's instant next time
+        }
+      });
+    }
     const ops = b.querySelector('.ops');
     // tap the photo to open Edit (top) / Remove (bottom)
     b.addEventListener('click', (ev) => {
@@ -597,11 +609,15 @@ $('btnSave').addEventListener('click', async () => {
     const blob = await new Promise((res, rej) =>
       canvas.toBlob(b => b ? res(b) : rej(new Error('encode failed')), 'image/jpeg', 0.92));
     const desc = $('descBox').value.trim();
+    // build the small preview NOW (page isn't frozen here) and store it, so the
+    // gallery never has to decode a full photo — especially after an export,
+    // when iOS suspends the page and on-the-fly decoding failed intermittently
+    const thumb = await makeThumb(blob);
     if (editingRec){
-      await dbPut({ ...editingRec, blob, orig: editingRec.orig || pendingOrig, desc, exported: 0 });
+      await dbPut({ ...editingRec, blob, orig: editingRec.orig || pendingOrig, desc, thumb, exported: 0 });
       toast('Updated ✓');
     } else {
-      await dbAdd({ blob, orig: pendingOrig, desc, name: makeFilename(), ts: Date.now(), exported: 0 });
+      await dbAdd({ blob, orig: pendingOrig, desc, thumb, name: makeFilename(), ts: Date.now(), exported: 0 });
       toast('Saved ✓');
     }
     rememberJob($('job').value.trim());
